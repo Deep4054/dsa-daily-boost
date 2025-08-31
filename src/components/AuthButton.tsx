@@ -58,7 +58,9 @@ export const AuthButton = () => {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/`
+          redirectTo: window.location.origin.includes('github.io') 
+            ? `${window.location.origin}/dsa-daily-boost/`
+            : `${window.location.origin}/`
         }
       });
       
