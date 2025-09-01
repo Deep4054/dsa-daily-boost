@@ -286,13 +286,13 @@ export const useUserData = (): UseUserDataReturn => {
         const { error: updateError } = await supabase
           .from('daily_logs')
           .update({
-            problems_solved: existingLog.problems_solved + (updates.problems_solved || 0),
-            study_time_minutes: existingLog.study_time_minutes + (updates.study_time_minutes || 0),
-            timer_duration_minutes: existingLog.timer_duration_minutes + (updates.timer_duration_minutes || 0),
-            overtime_minutes: existingLog.overtime_minutes + (updates.overtime_minutes || 0),
+            problems_solved: (existingLog as any).problems_solved + (updates.problems_solved || 0),
+            study_time_minutes: (existingLog as any).study_time_minutes + (updates.study_time_minutes || 0),
+            timer_duration_minutes: (existingLog as any).timer_duration_minutes + (updates.timer_duration_minutes || 0),
+            overtime_minutes: (existingLog as any).overtime_minutes + (updates.overtime_minutes || 0),
             updated_at: new Date().toISOString(),
-          })
-          .eq('id', existingLog.id);
+          } as any)
+          .eq('id', (existingLog as any).id);
         if (updateError) throw updateError;
       } else {
         const { error: insertError } = await supabase
@@ -301,7 +301,7 @@ export const useUserData = (): UseUserDataReturn => {
             user_id: user.id,
             log_date: today,
             ...updates,
-          });
+          } as any);
         if (insertError) throw insertError;
       }
     } catch (error) {
@@ -326,7 +326,7 @@ export const useUserData = (): UseUserDataReturn => {
 
       if (fetchProgressError && fetchProgressError.code !== 'PGRST116') throw fetchProgressError;
 
-      const newSolved = (existingProgress?.problems_solved || 0) + 1;
+      const newSolved = ((existingProgress as any)?.problems_solved || 0) + 1;
       const masteryLevel = Math.min(100, Math.round((newSolved / maxProblems) * 100));
 
       const { error: progressError } = await supabase.from('user_progress').upsert({
@@ -337,7 +337,7 @@ export const useUserData = (): UseUserDataReturn => {
         completed: masteryLevel >= 70,
         last_studied: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      });
+      } as any);
       if (progressError) throw progressError;
 
       await upsertDailyLog({ problems_solved: 1 });
@@ -361,7 +361,7 @@ export const useUserData = (): UseUserDataReturn => {
         timer_duration_minutes: timerDurationMinutes,
         problems_solved: problemsSolved,
         session_date: new Date().toISOString(),
-      });
+      } as any);
       if (sessionError) throw sessionError;
 
       const sessionOvertime = Math.max(0, studyTimeMinutes - timerDurationMinutes);
@@ -391,7 +391,7 @@ export const useUserData = (): UseUserDataReturn => {
           challenge_id: challengeId,
           time_taken_minutes: timeTakenMinutes,
           completed_at: new Date().toISOString(),
-        });
+        } as any);
 
       if (error) throw error;
       await fetchUserData();
@@ -410,7 +410,7 @@ export const useUserData = (): UseUserDataReturn => {
         .update({
           ...updates,
           updated_at: new Date().toISOString(),
-        })
+        } as any)
         .eq('user_id', user.id);
 
       if (error) throw error;

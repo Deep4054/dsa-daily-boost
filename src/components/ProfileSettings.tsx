@@ -9,7 +9,7 @@ import { Settings, Save } from "lucide-react";
 export const ProfileSettings = () => {
   const { userProfile, updateProfile, loading } = useUserData();
   const [formData, setFormData] = useState({
-    display_name: userProfile?.display_name || "",
+    full_name: userProfile?.full_name || "",
     email: userProfile?.email || ""
   });
   const [saving, setSaving] = useState(false);
@@ -37,12 +37,12 @@ export const ProfileSettings = () => {
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <Label htmlFor="display_name">Display Name</Label>
+          <Label htmlFor="full_name">Full Name</Label>
           <Input
-            id="display_name"
-            value={formData.display_name}
-            onChange={(e) => setFormData(prev => ({ ...prev, display_name: e.target.value }))}
-            placeholder="Enter your display name"
+            id="full_name"
+            value={formData.full_name}
+            onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
+            placeholder="Enter your full name"
           />
         </div>
 
