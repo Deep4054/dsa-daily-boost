@@ -49,46 +49,65 @@ export const AuthButton = () => {
     setLoading(true);
     try {
       console.log("🚀 Starting Google OAuth...");
+      
+      // Check if we're on GitHub Pages
+      const isGitHubPages = window.location.hostname.includes('github.io');
+      const currentUrl = window.location.href;
+      
       console.log("Environment check:", {
+        hostname: window.location.hostname,
+        isGitHubPages,
+        currentUrl,
         supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
-        hasGoogleClientId: !!import.meta.env.VITE_GOOGLE_CLIENT_ID,
-        redirectTo: `${window.location.origin}/`
+        hasGoogleClientId: !!import.meta.env.VITE_GOOGLE_CLIENT_ID
       });
       
-      const redirectUrl = window.location.origin.includes('github.io') 
-        ? `${window.location.origin}/dsa-daily-boost/`
+      // Use the current page URL as redirect for GitHub Pages
+      const redirectUrl = isGitHubPages 
+        ? currentUrl.split('?')[0].split('#')[0] // Remove query params and hash
         : `${window.location.origin}/`;
       
-      console.log('🔗 Redirect URL:', redirectUrl);
+      console.log('🔗 Using redirect URL:', redirectUrl);
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
+          scopes: 'email profile'
         }
       });
       
       console.log("📋 OAuth response:", { data, error });
       
       if (error) {
-        console.error("❌ OAuth error details:", {
-          message: error.message,
-          status: error.status,
-          details: error
+        console.error("❌ OAuth error:", error);
+        
+        // Show specific error messages
+        let errorMessage = error.message;
+        if (error.message.includes('redirect')) {
+          errorMessage = 'OAuth redirect URL not configured. Please check Google Cloud Console settings.';
+        } else if (error.message.includes('client_id')) {
+          errorMessage = 'Google Client ID not configured properly.';
+        }
+        
+        toast({
+          title: "Sign In Failed",
+          description: errorMessage,
+          variant: "destructive",
         });
-        throw error;
+        
+        setLoading(false);
+        return;
       }
       
-      console.log("✅ OAuth initiated successfully");
+      console.log("✅ OAuth popup opened successfully");
+      // Don't set loading to false here - let the auth state change handle it
+      
     } catch (error: any) {
       console.error("💥 Sign in error:", error);
       toast({
         title: "Sign In Error",
-        description: `${error.message || 'Unknown error'}. Check console for details.`,
+        description: error.message || 'Failed to initiate sign in. Please try again.',
         variant: "destructive",
       });
       setLoading(false);
@@ -163,9 +182,21 @@ export const AuthButton = () => {
       description: "Signed in with test account",
     });
   };
+  
+  const manualOAuth = () => {
+    const isGitHubPages = window.location.hostname.includes('github.io');
+    const redirectUrl = isGitHubPages 
+      ? window.location.href.split('?')[0].split('#')[0]
+      : `${window.location.origin}/`;
+    
+    const oauthUrl = `https://lsgjhhkbroecvlmiolnc.supabase.co/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}`;
+    
+    console.log('Manual OAuth URL:', oauthUrl);
+    window.location.href = oauthUrl;
+  };
 
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 flex-wrap">
       <Button
         onClick={signInWithGoogle}
         disabled={loading}
@@ -173,6 +204,16 @@ export const AuthButton = () => {
       >
         <LogIn className="h-4 w-4" />
         {loading ? "Signing in..." : "Sign in with Google"}
+      </Button>
+      
+      <Button
+        onClick={manualOAuth}
+        variant="secondary"
+        size="sm"
+        className="flex items-center gap-2"
+      >
+        <LogIn className="h-4 w-4" />
+        Direct OAuth
       </Button>
       
       {/* Test sign-in button for development */}
