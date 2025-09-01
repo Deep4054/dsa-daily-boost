@@ -13,10 +13,25 @@ export const AuthButton = () => {
   useEffect(() => {
     // Handle OAuth callback from URL hash
     const handleAuthCallback = async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (data.session) {
-        console.log('✅ Found existing session:', data.session.user.email);
-        setUser(data.session.user);
+      // Check for auth hash in URL
+      if (window.location.hash.includes('access_token')) {
+        console.log('🔗 Processing OAuth callback from hash');
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Session error:', error);
+        } else if (data.session) {
+          console.log('✅ OAuth successful:', data.session.user.email);
+          setUser(data.session.user);
+          // Clean up URL hash
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } else {
+        // Check for existing session
+        const { data, error } = await supabase.auth.getSession();
+        if (data.session) {
+          console.log('✅ Found existing session:', data.session.user.email);
+          setUser(data.session.user);
+        }
       }
     };
 
@@ -50,64 +65,25 @@ export const AuthButton = () => {
     try {
       console.log("🚀 Starting Google OAuth...");
       
-      // Check if we're on GitHub Pages
-      const isGitHubPages = window.location.hostname.includes('github.io');
-      const currentUrl = window.location.href;
-      
-      console.log("Environment check:", {
-        hostname: window.location.hostname,
-        isGitHubPages,
-        currentUrl,
-        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
-        hasGoogleClientId: !!import.meta.env.VITE_GOOGLE_CLIENT_ID
-      });
-      
-      // Use the current page URL as redirect for GitHub Pages
-      const redirectUrl = isGitHubPages 
-        ? currentUrl.split('?')[0].split('#')[0] // Remove query params and hash
-        : `${window.location.origin}/`;
-      
-      console.log('🔗 Using redirect URL:', redirectUrl);
-      
       const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          scopes: 'email profile'
-        }
+        provider: 'google'
       });
-      
-      console.log("📋 OAuth response:", { data, error });
       
       if (error) {
         console.error("❌ OAuth error:", error);
-        
-        // Show specific error messages
-        let errorMessage = error.message;
-        if (error.message.includes('redirect')) {
-          errorMessage = 'OAuth redirect URL not configured. Please check Google Cloud Console settings.';
-        } else if (error.message.includes('client_id')) {
-          errorMessage = 'Google Client ID not configured properly.';
-        }
-        
         toast({
           title: "Sign In Failed",
-          description: errorMessage,
+          description: error.message,
           variant: "destructive",
         });
-        
         setLoading(false);
-        return;
       }
-      
-      console.log("✅ OAuth popup opened successfully");
-      // Don't set loading to false here - let the auth state change handle it
       
     } catch (error: any) {
       console.error("💥 Sign in error:", error);
       toast({
         title: "Sign In Error",
-        description: error.message || 'Failed to initiate sign in. Please try again.',
+        description: error.message || 'Failed to initiate sign in.',
         variant: "destructive",
       });
       setLoading(false);
@@ -184,15 +160,9 @@ export const AuthButton = () => {
   };
   
   const manualOAuth = () => {
-    const isGitHubPages = window.location.hostname.includes('github.io');
-    const redirectUrl = isGitHubPages 
-      ? window.location.href.split('?')[0].split('#')[0]
-      : `${window.location.origin}/`;
-    
-    const oauthUrl = `https://lsgjhhkbroecvlmiolnc.supabase.co/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}`;
-    
+    const oauthUrl = `https://lsgjhhkbroecvlmiolnc.supabase.co/auth/v1/authorize?provider=google`;
     console.log('Manual OAuth URL:', oauthUrl);
-    window.location.href = oauthUrl;
+    window.open(oauthUrl, '_blank', 'width=500,height=600');
   };
 
   return (
