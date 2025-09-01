@@ -167,7 +167,9 @@ const Index = () => {
                         {studySessions.slice(0, 5).map((session) => (
                           <div key={session.id} className="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
                             <div>
-                              <p className="font-medium text-white">{session.category}</p>
+                              <p className="font-medium text-white">
+                                {dsaTopics.find(t => t.id === session.topic_id)?.title || session.topic_id}
+                              </p>
                               <p className="text-sm text-gray-400">
                                 {new Date(session.session_date).toLocaleString()}
                               </p>

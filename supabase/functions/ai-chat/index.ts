@@ -63,7 +63,11 @@ Keep responses concise but thorough. If the user asks about a specific problem, 
     });
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
+      const errorBody = await response.json().catch(() => ({})); // Gracefully handle non-json responses
+      const errorMessage = errorBody.error?.message || response.statusText || 'Unknown error';
+      throw new Error(
+        `OpenAI API error: ${response.status} - ${errorMessage}`
+      );
     }
 
     const data = await response.json();

@@ -29,10 +29,11 @@ jobs:
     - name: Build
       run: npm run build
       env:
-        VITE_SUPABASE_URL: https://lsgjhhkbroecvlmiolnc.supabase.co
-        VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzZ2poaGticm9lY3ZsbWlvbG5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2Mjc4NTEsImV4cCI6MjA3MjIwMzg1MX0.wekYdQZERszqA552XY8dW8YjH_2s19Pp6_5eFSARCvk
-        VITE_GOOGLE_CLIENT_ID: 251902222844-i2iaij37a3079dcramcabm8tk7mis1tk.apps.googleusercontent.com
-        VITE_APP_URL: https://Deep4054.github.io/dsa-daily-boost
+        VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+        VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+        VITE_APP_URL: ${{ secrets.VITE_APP_URL }}
+        VITE_ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
         
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v4

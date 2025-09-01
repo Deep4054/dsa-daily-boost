@@ -94,7 +94,7 @@ export const emailService = {
               </div>
               
               <div style="text-align: center;">
-                <a href="${process.env.VITE_APP_URL || 'http://localhost:5173'}" class="cta-button">
+                <a href="${import.meta.env.VITE_APP_URL || 'http://localhost:5173'}" class="cta-button">
                   Start Your Journey 🚀
                 </a>
               </div>
@@ -206,7 +206,7 @@ export const emailService = {
               </div>
               
               <div style="text-align: center;">
-                <a href="${process.env.VITE_APP_URL || 'http://localhost:5173'}" class="cta-button">
+                <a href="${import.meta.env.VITE_APP_URL || 'http://localhost:5173'}" class="cta-button">
                   Continue Learning 📚
                 </a>
               </div>
@@ -238,7 +238,14 @@ export const emailService = {
 
   // Send admin notification when user signs in
   async sendAdminNotification(userEmail: string, userName: string, userMetadata: any) {
-    const adminEmail = 'admin@dsadailyboost.com'; // Replace with actual admin email
+    // Note: For better security, the admin email should ideally be determined by the
+    // server-side edge function, not passed from the client.
+    // This implementation uses a client-side environment variable as a compromise.
+    const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+    if (!adminEmail) {
+      console.error("Admin email is not configured. Skipping admin notification.");
+      return;
+    }
     
     const emailData: EmailNotification = {
       to: adminEmail,
