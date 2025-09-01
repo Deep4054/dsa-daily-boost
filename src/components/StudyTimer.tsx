@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Timer, Play, Pause, Square, RotateCcw, Mail, Bell, Target } from "lucide-react";
 import { useUserData } from "@/hooks/useUserData";
+import { useActiveSession } from "@/hooks/useActiveSession";
+import { useUserPreferences } from "@/hooks/useUserPreferences";
+import { useStudyHistory } from "@/hooks/useStudyHistory";
 import { useBrowserHistory } from "@/hooks/useBrowserHistory";
 import { BrowserHistoryPanel } from "@/components/BrowserHistoryPanel";
 import { TimerDurationSelector } from "@/components/TimerDurationSelector";
@@ -30,32 +33,22 @@ export const StudyTimer = ({
   onTimeUpdate,
   pendingUpdates = {}
 }: StudyTimerProps) => {
-  const [timerDuration, setTimerDuration] = useState(initialTimeLeft);
-  const [timeLeft, setTimeLeft] = useState(() => {
-    const saved = localStorage.getItem('dsa-study-session');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.isActive && parsed.currentTopic === categoryName) {
-        return parsed.timeLeft;
-      }
-    }
-    return initialTimeLeft;
-  });
-  const [isRunning, setIsRunning] = useState(() => {
-    const saved = localStorage.getItem('dsa-study-session');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return parsed.isActive && parsed.currentTopic === categoryName;
-    }
-    return false;
-  });
-  const [problemsSolved, setProblemsSolved] = useState(0);
-  const [overtimeMinutes, setOvertimeMinutes] = useState(0);
-  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
-  const [motivationalQuote, setMotivationalQuote] = useState('');
-  const [emailNotifications, setEmailNotifications] = useState(true);
   const { user, addStudySession } = useUserData();
+  const { activeSession, startSession, endSession, updateTimeLeft, updateProblemsCount } = useActiveSession(user);
+  const { preferences, updatePreferences } = useUserPreferences(user);
+  const { addHistoryEntry } = useStudyHistory(user);
   const { history, completedSessions, isTracking, startTracking, stopTracking, clearHistory, clearCompletedSessions } = useBrowserHistory();
+
+  const [motivationalQuote, setMotivationalQuote] = useState('');
+
+  // Derived state from activeSession
+  const isRunning = activeSession?.is_active || false;
+  const timeLeft = activeSession?.time_left || initialTimeLeft;
+  const timerDuration = activeSession?.timer_duration || preferences?.default_timer_duration || initialTimeLeft;
+  const problemsSolved = activeSession?.problems_solved || 0;
+  const sessionStartTime = activeSession?.start_time ? new Date(activeSession.start_time) : null;
+  const emailNotifications = preferences?.email_notifications ?? true;
+  const overtimeMinutes = timeLeft < 0 ? Math.ceil(Math.abs(timeLeft) / 60) : 0;
 
   // Set random motivational quote on component mount
   useEffect(() => {
@@ -66,36 +59,16 @@ export const StudyTimer = ({
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
-    if (isRunning) {
+    if (isRunning && activeSession) {
       interval = setInterval(() => {
-        setTimeLeft(time => {
-          const newTime = time - 1;
-          onTimeUpdate(newTime);
-
-          // Handle overtime
-          if (newTime < 0) {
-            const overtime = Math.abs(newTime);
-            setOvertimeMinutes(Math.ceil(overtime / 60));
-          }
-
-          // Save to localStorage for persistence
-          const sessionData = {
-            isActive: true,
-            currentTopic: categoryName,
-            currentTopicTitle: categoryTitle,
-            startTime: sessionStartTime?.getTime() || Date.now(),
-            timeLeft: newTime,
-            timerDuration
-          };
-          localStorage.setItem('dsa-study-session', JSON.stringify(sessionData));
-
-          return newTime;
-        });
+        const newTime = timeLeft - 1;
+        onTimeUpdate(newTime);
+        updateTimeLeft(newTime);
       }, 1000);
     }
 
     return () => clearInterval(interval);
-  }, [isRunning, onTimeUpdate, categoryName, categoryTitle, sessionStartTime, timerDuration]);
+  }, [isRunning, timeLeft, onTimeUpdate, updateTimeLeft, activeSession]);
 
   // Auto-complete timer when time reaches 0
   useEffect(() => {
@@ -110,16 +83,12 @@ export const StudyTimer = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleStart = () => {
-    setIsRunning(true);
-    if (!sessionStartTime) {
-      setSessionStartTime(new Date());
-    }
+  const handleStart = async () => {
+    await startSession(categoryName, categoryTitle, timerDuration);
     if (!isTracking) {
       startTracking(categoryName, categoryTitle);
     }
 
-    // Show motivational toast
     toast({
       title: "🚀 Timer Started!",
       description: motivationalQuote,
@@ -127,18 +96,37 @@ export const StudyTimer = ({
     });
   };
 
-  const handlePause = () => setIsRunning(false);
+  const handlePause = async () => {
+    if (activeSession) {
+      await updateTimeLeft(timeLeft);
+      await endSession();
+    }
+  };
 
   const handleStop = async () => {
-    const actualMinutes = sessionStartTime ? Math.ceil((Date.now() - sessionStartTime.getTime()) / (1000 * 60)) : 0;
+    if (!activeSession || !sessionStartTime) return;
+
+    const actualMinutes = Math.ceil((Date.now() - sessionStartTime.getTime()) / (1000 * 60));
     const timerDurationMinutes = Math.ceil(timerDuration / 60);
     const overtimeMinutesActual = Math.max(0, actualMinutes - timerDurationMinutes);
+
+    // Save to history
+    await addHistoryEntry({
+      topic_name: categoryName,
+      topic_title: categoryTitle,
+      planned_duration: timerDuration,
+      actual_duration: actualMinutes * 60,
+      problems_solved: problemsSolved,
+      start_time: activeSession.start_time!,
+      end_time: new Date().toISOString(),
+      completed: false,
+      overtime_minutes: overtimeMinutesActual,
+    });
 
     if (actualMinutes > 0) {
       await addStudySession(problemsSolved, actualMinutes, timerDurationMinutes, categoryName);
     }
 
-    // Send email notification if enabled
     if (emailNotifications && user && actualMinutes >= 5) {
       try {
         await emailService.sendTimerCompleteEmail(
@@ -157,18 +145,32 @@ export const StudyTimer = ({
     }
 
     stopTracking(false);
-    resetTimer();
+    await endSession();
     onSessionComplete();
   };
 
   const handleSessionComplete = async () => {
-    const actualMinutes = sessionStartTime ? Math.ceil((Date.now() - sessionStartTime.getTime()) / (1000 * 60)) : 0;
+    if (!activeSession || !sessionStartTime) return;
+
+    const actualMinutes = Math.ceil((Date.now() - sessionStartTime.getTime()) / (1000 * 60));
     const timerDurationMinutes = Math.ceil(timerDuration / 60);
     const overtimeMinutesActual = Math.max(0, actualMinutes - timerDurationMinutes);
 
+    // Save to history
+    await addHistoryEntry({
+      topic_name: categoryName,
+      topic_title: categoryTitle,
+      planned_duration: timerDuration,
+      actual_duration: actualMinutes * 60,
+      problems_solved: problemsSolved,
+      start_time: activeSession.start_time!,
+      end_time: new Date().toISOString(),
+      completed: true,
+      overtime_minutes: overtimeMinutesActual,
+    });
+
     await addStudySession(problemsSolved, actualMinutes, timerDurationMinutes, categoryName);
 
-    // Send email notification
     if (emailNotifications && user) {
       try {
         await emailService.sendTimerCompleteEmail(
@@ -188,7 +190,6 @@ export const StudyTimer = ({
 
     stopTracking(true);
 
-    // Show browser notification
     if (Notification.permission === 'granted') {
       new Notification('🎉 Study Session Complete!', {
         body: `Excellent work! You completed ${timerDurationMinutes}min timer for ${categoryTitle} and solved ${problemsSolved} problems!`,
@@ -196,38 +197,27 @@ export const StudyTimer = ({
       });
     }
 
-    // Show success toast
     toast({
       title: "🎉 Session Complete!",
       description: `Great job! You studied ${categoryTitle} for ${actualMinutes} minutes and solved ${problemsSolved} problems.`,
       duration: 6000,
     });
 
-    resetTimer();
+    await endSession();
     onSessionComplete();
   };
 
-  const resetTimer = () => {
+  const handleReset = async () => {
     if (isTracking) {
       stopTracking(false);
     }
-    setTimeLeft(timerDuration);
-    setIsRunning(false);
-    setProblemsSolved(0);
-    setOvertimeMinutes(0);
-    setSessionStartTime(null);
+    await endSession();
     onTimeUpdate(timerDuration);
-    localStorage.removeItem('dsa-study-session');
   };
 
-  const handleReset = () => {
-    resetTimer();
-  };
-
-  const handleDurationChange = (newDuration: number) => {
-    if (!isRunning) {
-      setTimerDuration(newDuration);
-      setTimeLeft(newDuration);
+  const handleDurationChange = async (newDuration: number) => {
+    if (!isRunning && preferences) {
+      await updatePreferences({ default_timer_duration: newDuration });
       onTimeUpdate(newDuration);
     }
   };
@@ -252,7 +242,7 @@ export const StudyTimer = ({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setEmailNotifications(!emailNotifications)}
+                onClick={() => preferences && updatePreferences({ email_notifications: !emailNotifications })}
                 className="text-purple-100 hover:bg-purple-700"
               >
                 {emailNotifications ? <Mail className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
@@ -271,7 +261,7 @@ export const StudyTimer = ({
               onDurationChange={handleDurationChange}
             />
           )}
-          
+
           <div className="text-center">
             <h3 className="text-lg font-semibold mb-2 text-purple-100">{categoryTitle}</h3>
             <div className="text-6xl font-mono font-bold text-white mb-2">
@@ -297,36 +287,36 @@ export const StudyTimer = ({
 
           <div className="flex justify-center gap-2">
             {!isRunning ? (
-              <Button 
-                onClick={handleStart} 
+              <Button
+                onClick={handleStart}
                 className="bg-green-600 hover:bg-green-700 text-white"
-                disabled={timeLeft === 0}
+                disabled={isRunning}
               >
                 <Play className="h-4 w-4 mr-2" />
                 Start
               </Button>
             ) : (
-              <Button 
-                onClick={handlePause} 
+              <Button
+                onClick={handlePause}
                 className="bg-yellow-600 hover:bg-yellow-700 text-white"
               >
                 <Pause className="h-4 w-4 mr-2" />
                 Pause
               </Button>
             )}
-            
-            <Button 
-              onClick={handleStop} 
+
+            <Button
+              onClick={handleStop}
               className="bg-red-600 hover:bg-red-700 text-white"
-              disabled={!isRunning && timeLeft === initialTimeLeft}
+              disabled={!isRunning}
             >
               <Square className="h-4 w-4 mr-2" />
               Stop
             </Button>
-            
-            <Button 
-              onClick={handleReset} 
-              variant="outline" 
+
+            <Button
+              onClick={handleReset}
+              variant="outline"
               className="border-purple-400 text-purple-100 hover:bg-purple-700"
               disabled={isRunning}
             >
@@ -339,8 +329,8 @@ export const StudyTimer = ({
             <div className="text-center">
               <label className="text-sm text-purple-200 block mb-2">Problems solved this session:</label>
               <div className="flex justify-center gap-2">
-                <Button 
-                  onClick={() => setProblemsSolved(Math.max(0, problemsSolved - 1))}
+                <Button
+                  onClick={() => updateProblemsCount(Math.max(0, problemsSolved - 1))}
                   variant="outline"
                   size="sm"
                   className="border-purple-400 text-purple-100 hover:bg-purple-700"
@@ -350,8 +340,8 @@ export const StudyTimer = ({
                 <span className="px-6 py-2 bg-purple-800 rounded-lg text-white font-bold text-lg min-w-[60px] flex items-center justify-center">
                   {problemsSolved}
                 </span>
-                <Button 
-                  onClick={() => setProblemsSolved(problemsSolved + 1)}
+                <Button
+                  onClick={() => updateProblemsCount(problemsSolved + 1)}
                   variant="outline"
                   size="sm"
                   className="border-purple-400 text-purple-100 hover:bg-purple-700"
@@ -360,14 +350,14 @@ export const StudyTimer = ({
                 </Button>
               </div>
             </div>
-            
+
             {/* Motivational Quote */}
             <div className="bg-purple-800/50 p-4 rounded-lg text-center">
               <p className="text-sm italic text-purple-100">
                 💡 {motivationalQuote}
               </p>
             </div>
-            
+
             {/* Email Notification Status */}
             <div className="flex items-center justify-center gap-2 text-xs text-purple-200">
               {emailNotifications ? (
@@ -382,8 +372,8 @@ export const StudyTimer = ({
 
       {/* Current Session History */}
       {(isTracking || history.length > 0) && (
-        <BrowserHistoryPanel 
-          history={history} 
+        <BrowserHistoryPanel
+          history={history}
           onClear={clearHistory}
           title="Current Session History"
         />
