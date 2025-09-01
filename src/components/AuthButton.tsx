@@ -55,12 +55,20 @@ export const AuthButton = () => {
         redirectTo: `${window.location.origin}/`
       });
       
+      const redirectUrl = window.location.origin.includes('github.io') 
+        ? `${window.location.origin}/dsa-daily-boost/`
+        : `${window.location.origin}/`;
+      
+      console.log('🔗 Redirect URL:', redirectUrl);
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin.includes('github.io') 
-            ? `${window.location.origin}/dsa-daily-boost/`
-            : `${window.location.origin}/`
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
         }
       });
       
@@ -141,14 +149,42 @@ export const AuthButton = () => {
 
 
 
+  const testSignIn = () => {
+    // Create a mock user for testing
+    const mockUser = {
+      id: 'test-user-123',
+      email: 'test@example.com',
+      user_metadata: { full_name: 'Test User' }
+    } as User;
+    
+    setUser(mockUser);
+    toast({
+      title: "Test Mode",
+      description: "Signed in with test account",
+    });
+  };
+
   return (
-    <Button
-      onClick={signInWithGoogle}
-      disabled={loading}
-      className="flex items-center gap-2"
-    >
-      <LogIn className="h-4 w-4" />
-      {loading ? "Signing in..." : "Sign in with Google"}
-    </Button>
+    <div className="flex gap-2">
+      <Button
+        onClick={signInWithGoogle}
+        disabled={loading}
+        className="flex items-center gap-2"
+      >
+        <LogIn className="h-4 w-4" />
+        {loading ? "Signing in..." : "Sign in with Google"}
+      </Button>
+      
+      {/* Test sign-in button for development */}
+      <Button
+        onClick={testSignIn}
+        variant="outline"
+        size="sm"
+        className="flex items-center gap-2"
+      >
+        <UserIcon className="h-4 w-4" />
+        Test Sign In
+      </Button>
+    </div>
   );
 };
