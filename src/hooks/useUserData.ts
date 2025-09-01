@@ -283,7 +283,7 @@ export const useUserData = (): UseUserDataReturn => {
       if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
 
       if (existingLog) {
-        const { error: updateError } = await supabase
+        const { error: updateError } = await (supabase as any)
           .from('daily_logs')
           .update({
             problems_solved: (existingLog as any).problems_solved + (updates.problems_solved || 0),
@@ -291,17 +291,17 @@ export const useUserData = (): UseUserDataReturn => {
             timer_duration_minutes: (existingLog as any).timer_duration_minutes + (updates.timer_duration_minutes || 0),
             overtime_minutes: (existingLog as any).overtime_minutes + (updates.overtime_minutes || 0),
             updated_at: new Date().toISOString(),
-          } as any)
+          })
           .eq('id', (existingLog as any).id);
         if (updateError) throw updateError;
       } else {
-        const { error: insertError } = await supabase
+        const { error: insertError } = await (supabase as any)
           .from('daily_logs')
           .insert({
             user_id: user.id,
             log_date: today,
             ...updates,
-          } as any);
+          });
         if (insertError) throw insertError;
       }
     } catch (error) {
@@ -329,7 +329,7 @@ export const useUserData = (): UseUserDataReturn => {
       const newSolved = ((existingProgress as any)?.problems_solved || 0) + 1;
       const masteryLevel = Math.min(100, Math.round((newSolved / maxProblems) * 100));
 
-      const { error: progressError } = await supabase.from('user_progress').upsert({
+      const { error: progressError } = await (supabase as any).from('user_progress').upsert({
         user_id: user.id,
         topic_id: topicId,
         problems_solved: newSolved,
@@ -337,7 +337,7 @@ export const useUserData = (): UseUserDataReturn => {
         completed: masteryLevel >= 70,
         last_studied: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      } as any);
+      });
       if (progressError) throw progressError;
 
       await upsertDailyLog({ problems_solved: 1 });
@@ -354,14 +354,14 @@ export const useUserData = (): UseUserDataReturn => {
     if (!user) return;
 
     try {
-      const { error: sessionError } = await supabase.from('study_sessions').insert({
+      const { error: sessionError } = await (supabase as any).from('study_sessions').insert({
         user_id: user.id,
         topic_id: topicId,
         study_time_minutes: studyTimeMinutes,
         timer_duration_minutes: timerDurationMinutes,
         problems_solved: problemsSolved,
         session_date: new Date().toISOString(),
-      } as any);
+      });
       if (sessionError) throw sessionError;
 
       const sessionOvertime = Math.max(0, studyTimeMinutes - timerDurationMinutes);
@@ -384,14 +384,14 @@ export const useUserData = (): UseUserDataReturn => {
     if (!user) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('user_challenge_completions')
         .insert({
           user_id: user.id,
           challenge_id: challengeId,
           time_taken_minutes: timeTakenMinutes,
           completed_at: new Date().toISOString(),
-        } as any);
+        });
 
       if (error) throw error;
       await fetchUserData();
@@ -405,12 +405,12 @@ export const useUserData = (): UseUserDataReturn => {
     if (!user) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('profiles')
         .update({
           ...updates,
           updated_at: new Date().toISOString(),
-        } as any)
+        })
         .eq('user_id', user.id);
 
       if (error) throw error;
