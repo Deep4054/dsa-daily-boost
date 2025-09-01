@@ -21,11 +21,11 @@ interface StudyTimerProps {
   pendingUpdates?: { [topicId: string]: number };
 }
 
-export const StudyTimer = ({ 
-  categoryName, 
-  categoryTitle, 
+export const StudyTimer = ({
+  categoryName,
+  categoryTitle,
   initialTimeLeft = 25 * 60,
-  onSessionComplete, 
+  onSessionComplete,
   onSwitchTopic,
   onTimeUpdate,
   pendingUpdates = {}
@@ -65,19 +65,19 @@ export const StudyTimer = ({
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    
+
     if (isRunning) {
       interval = setInterval(() => {
         setTimeLeft(time => {
           const newTime = time - 1;
           onTimeUpdate(newTime);
-          
+
           // Handle overtime
           if (newTime < 0) {
             const overtime = Math.abs(newTime);
             setOvertimeMinutes(Math.ceil(overtime / 60));
           }
-          
+
           // Save to localStorage for persistence
           const sessionData = {
             isActive: true,
@@ -88,7 +88,7 @@ export const StudyTimer = ({
             timerDuration
           };
           localStorage.setItem('dsa-study-session', JSON.stringify(sessionData));
-          
+
           return newTime;
         });
       }, 1000);
@@ -96,6 +96,13 @@ export const StudyTimer = ({
 
     return () => clearInterval(interval);
   }, [isRunning, onTimeUpdate, categoryName, categoryTitle, sessionStartTime, timerDuration]);
+
+  // Auto-complete timer when time reaches 0
+  useEffect(() => {
+    if (timeLeft === 0 && isRunning) {
+      handleSessionComplete();
+    }
+  }, [timeLeft, isRunning]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -111,7 +118,7 @@ export const StudyTimer = ({
     if (!isTracking) {
       startTracking(categoryName, categoryTitle);
     }
-    
+
     // Show motivational toast
     toast({
       title: "🚀 Timer Started!",
@@ -121,16 +128,16 @@ export const StudyTimer = ({
   };
 
   const handlePause = () => setIsRunning(false);
-  
+
   const handleStop = async () => {
     const actualMinutes = sessionStartTime ? Math.ceil((Date.now() - sessionStartTime.getTime()) / (1000 * 60)) : 0;
     const timerDurationMinutes = Math.ceil(timerDuration / 60);
     const overtimeMinutesActual = Math.max(0, actualMinutes - timerDurationMinutes);
-    
+
     if (actualMinutes > 0) {
       await addStudySession(problemsSolved, actualMinutes, timerDurationMinutes, categoryName);
     }
-    
+
     // Send email notification if enabled
     if (emailNotifications && user && actualMinutes >= 5) {
       try {
@@ -148,7 +155,7 @@ export const StudyTimer = ({
         console.error('Failed to send email notification:', error);
       }
     }
-    
+
     stopTracking(false);
     resetTimer();
     onSessionComplete();
@@ -158,9 +165,9 @@ export const StudyTimer = ({
     const actualMinutes = sessionStartTime ? Math.ceil((Date.now() - sessionStartTime.getTime()) / (1000 * 60)) : 0;
     const timerDurationMinutes = Math.ceil(timerDuration / 60);
     const overtimeMinutesActual = Math.max(0, actualMinutes - timerDurationMinutes);
-    
+
     await addStudySession(problemsSolved, actualMinutes, timerDurationMinutes, categoryName);
-    
+
     // Send email notification
     if (emailNotifications && user) {
       try {
@@ -178,9 +185,9 @@ export const StudyTimer = ({
         console.error('Failed to send email notification:', error);
       }
     }
-    
+
     stopTracking(true);
-    
+
     // Show browser notification
     if (Notification.permission === 'granted') {
       new Notification('🎉 Study Session Complete!', {
@@ -188,14 +195,14 @@ export const StudyTimer = ({
         icon: '/favicon.ico'
       });
     }
-    
+
     // Show success toast
     toast({
       title: "🎉 Session Complete!",
       description: `Great job! You studied ${categoryTitle} for ${actualMinutes} minutes and solved ${problemsSolved} problems.`,
       duration: 6000,
     });
-    
+
     resetTimer();
     onSessionComplete();
   };
@@ -231,13 +238,6 @@ export const StudyTimer = ({
       Notification.requestPermission();
     }
   }, []);
-
-  // Auto-complete timer when time reaches 0
-  useEffect(() => {
-    if (timeLeft === 0 && isRunning) {
-      handleSessionComplete();
-    }
-  }, [timeLeft, isRunning]);
 
   return (
     <div className="space-y-6">
@@ -377,48 +377,8 @@ export const StudyTimer = ({
               )}
             </div>
           </div>
-
-
         </CardContent>
       </Card>
-
-      {/* Session Statistics */}
-      {(isRunning || sessionStartTime) && (
-        <Card className="bg-gradient-to-r from-blue-900 to-indigo-900 border-blue-600 text-white">
-          <CardHeader>
-            <CardTitle className="text-lg">📊 Session Analytics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-200">
-                  {Math.ceil(timerDuration / 60)}
-                </div>
-                <div className="text-xs text-blue-300">Target (min)</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-200">
-                  {sessionStartTime ? Math.ceil((Date.now() - sessionStartTime.getTime()) / (1000 * 60)) : 0}
-                </div>
-                <div className="text-xs text-green-300">Actual (min)</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-200">
-                  {problemsSolved}
-                </div>
-                <div className="text-xs text-yellow-300">Problems</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-200">
-                  {problemsSolved > 0 && sessionStartTime ? 
-                    Math.round((problemsSolved / Math.max(1, (Date.now() - sessionStartTime.getTime()) / (1000 * 60))) * 60) : 0}
-                </div>
-                <div className="text-xs text-purple-300">Problems/hr</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Current Session History */}
       {(isTracking || history.length > 0) && (
